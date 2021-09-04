@@ -33,28 +33,34 @@ bool is_blank(const string & str);
 class ReadDir
 {
     const int MAX_PATH;
-    bool recur;
+    bool recur, first =true;
     vec_str ret;
     public:
-    ReadDir(bool recur = false): MAX_PATH(1024){this->recur = recur;}
+    ReadDir(bool recur = true): MAX_PATH(1024){this->recur = recur;}
     vec_str getAllFile(const string &dir =".")
     {
-        fsize(dir);
+        fAccess(dir);
         return ret;
     }
-    void fsize(const string& name)
+    void fAccess(const string& name)
     {
+
         struct stat stbuf;
         if (stat(name.data(), &stbuf) == -1) {
             fprintf(stderr, "fsize: can't access %s\n", name.data());
             return;
         }
-        if ((stbuf.st_mode & S_IFMT) == S_IFDIR)
+        if ((stbuf.st_mode & S_IFMT) == S_IFDIR && (first || recur) )
+        {
+            if( first) first =!first;
             dirwalk(name);
+        }    
+        else if( (stbuf.st_mode & S_IFMT) == S_IFREG)
+            ret.emplace_back( name);
+        
     }
     void dirwalk(const string& dir)
     {
-        char name[MAX_PATH];
         struct dirent *dp;
         DIR *dfd;
 
@@ -66,15 +72,13 @@ class ReadDir
             if (strcmp(dp->d_name, ".") == 0
                 || strcmp(dp->d_name, "..") == 0)
                 continue;    /* skip self and parent */
-            if ( dir.size()+strlen(dp->d_name)+2 > sizeof(name))
+            if ( dir.size()+strlen(dp->d_name)+2 > MAX_PATH)
                 fprintf(stderr, "dirwalk: name %s %s too long\n",
                     dir.data(), dp->d_name);
             else {
                 fstring fstr;
                 fstr<<dir<<"/"<<dp->d_name;
-                ret.emplace_back(fstr.str());
-                if( this->recur)
-                    fsize(name);
+                fAccess( fstr.str());
             }
         }
         closedir(dfd);
